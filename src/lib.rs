@@ -5,6 +5,7 @@
 //!
 //! **Please Donate**
 //!
+//! + **BTC:** 17voJDvueb7iZtcLRrLtq3dfQYBaSi2GsU
 //! + **ETC:** 0x7bC5Ff6Bc22B4C6Af135493E6a8a11A62D209ae5
 //! + **XMR:** 49S4VziJ9v2CSkH6mP9km5SGeo3uxhG41bVYDQdwXQZzRF6mG7B4Fqv2aNEYHmQmPfJcYEnwNK1cAGLHMMmKaUWg25rHnkm
 //!
@@ -13,6 +14,7 @@
 extern crate base64;
 extern crate crypto;
 extern crate curl;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -22,9 +24,9 @@ use crypto::digest::Digest;
 use crypto::hmac::Hmac;
 use crypto::mac::Mac;
 use crypto::sha2::{Sha256, Sha512};
+use curl::easy::{Easy, List};
 use std::collections::HashMap;
 use std::io::Read;
-use curl::easy::{Easy, List};
 
 
 ///
@@ -300,9 +302,15 @@ fn public(url: &str) -> Result<Vec<u8>, String> {
 /// }
 /// ```
 ///
-pub fn time() -> Result<KrakenResult<Time>, String> {
-    public("Time").and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+pub fn time() -> Result<Time, String> {
+    public("Time").and_then(|dst| {
+        serde_json::from_slice(&dst)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<Time>| if result.error.len() > 0 {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -756,56 +764,4 @@ pub fn cancel_order(account: &Account, txid: &str) -> Result<KrakenResult<Cancel
     private(account, "CancelOrder", &mut params).and_then(|r| {
         serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
     })
-}
-
-
-#[cfg(test)]
-mod test {
-
-    #[test]
-    fn get_time() {
-        super::time().unwrap();
-    }
-
-    #[test]
-    fn get_assets() {
-        super::assets().unwrap();
-    }
-
-    #[test]
-    fn get_asset_pairs() {
-        super::asset_pairs().unwrap();
-    }
-
-    #[test]
-    fn get_ticker() {
-        super::ticker("XETHZEUR").unwrap();
-    }
-
-    #[test]
-    fn get_ohlc() {
-        let ohlc = super::ohlc("XETHZEUR").unwrap();
-
-        if ohlc.error.len() > 0 {
-            panic!("{:?}", ohlc.error);
-        }
-    }
-
-    #[test]
-    fn get_recent_trades() {
-        let data = super::recent_trades("XETHZEUR", None).unwrap();
-
-        if data.error.len() > 0 {
-            panic!("{:?}", data.error);
-        }
-    }
-
-    #[test]
-    fn get_recent_spread() {
-        let data = super::recent_spread("XETHZEUR", None).unwrap();
-
-        if data.error.len() > 0 {
-            panic!("{:?}", data.error);
-        }
-    }
 }
