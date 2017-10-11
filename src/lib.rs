@@ -317,9 +317,17 @@ pub fn time() -> Result<Time, String> {
 ///
 /// Returns an array of asset names and their info.
 ///
-pub fn assets() -> Result<KrakenResult<HashMap<String, Asset>>, String> {
+pub fn assets() -> Result<HashMap<String, Asset>, String> {
     public("Assets").and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<HashMap<String, Asset>>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 
 }
@@ -381,9 +389,17 @@ pub fn assets() -> Result<KrakenResult<HashMap<String, Asset>>, String> {
 /// }
 /// ```
 ///
-pub fn asset_pairs() -> Result<KrakenResult<HashMap<String, AssetPair>>, String> {
+pub fn asset_pairs() -> Result<HashMap<String, AssetPair>, String> {
     public("AssetPairs").and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<HashMap<String, AssetPair>>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 }
 
@@ -424,9 +440,17 @@ pub fn asset_pairs() -> Result<KrakenResult<HashMap<String, AssetPair>>, String>
 ///     }
 /// }
 /// ```
-pub fn ticker(pairs: &str) -> Result<KrakenResult<HashMap<String, Tick>>, String> {
+pub fn ticker(pairs: &str) -> Result<HashMap<String, Tick>, String> {
     public(&format!("Ticker?pair={}", pairs)).and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<HashMap<String, Tick>>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 }
 
@@ -458,9 +482,15 @@ pub fn ticker(pairs: &str) -> Result<KrakenResult<HashMap<String, Tick>>, String
 /// }
 /// ```
 ///
-pub fn ohlc(pair: &str) -> Result<KrakenResult<OHLC>, String> {
+pub fn ohlc(pair: &str) -> Result<OHLC, String> {
     public(&format!("OHLC?pair={}", pair)).and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<OHLC>| if result.error.len() > 0 {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -479,7 +509,7 @@ pub fn ohlc(pair: &str) -> Result<KrakenResult<OHLC>, String> {
 /// }
 /// ```
 ///
-pub fn order_book(pair: &str, count: Option<u32>) -> Result<KrakenResult<Depth>, String> {
+pub fn order_book(pair: &str, count: Option<u32>) -> Result<Depth, String> {
     let mut url = format!("Depth?pair={}", pair);
 
     if let Some(ct) = count {
@@ -487,7 +517,13 @@ pub fn order_book(pair: &str, count: Option<u32>) -> Result<KrakenResult<Depth>,
     }
 
     public(&url).and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<Depth>| if result.error.len() > 0 {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -508,7 +544,7 @@ pub fn order_book(pair: &str, count: Option<u32>) -> Result<KrakenResult<Depth>,
 pub fn recent_trades(
     pair: &str,
     since: Option<&str>,
-) -> Result<KrakenResult<HashMap<String, serde_json::Value>>, String> {
+) -> Result<HashMap<String, serde_json::Value>, String> {
     let mut url = format!("Trades?pair={}", pair);
 
     if let Some(ct) = since {
@@ -516,7 +552,18 @@ pub fn recent_trades(
     }
 
     public(&url).and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<
+                HashMap<
+                    String,
+                    serde_json::Value,
+                >,
+            >| if result.error.len() > 0 {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -537,7 +584,7 @@ pub fn recent_trades(
 pub fn recent_spread(
     pair: &str,
     since: Option<u32>,
-) -> Result<KrakenResult<HashMap<String, serde_json::Value>>, String> {
+) -> Result<HashMap<String, serde_json::Value>, String> {
     let mut url = format!("Spread?pair={}", pair);
 
     if let Some(ct) = since {
@@ -545,7 +592,18 @@ pub fn recent_spread(
     }
 
     public(&url).and_then(|data| {
-        serde_json::from_slice(&data).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&data)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<
+                HashMap<
+                    String,
+                    serde_json::Value,
+                >,
+            >| if result.error.len() > 0 {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -626,10 +684,18 @@ fn private(
 ///
 /// Returns an array of asset names and balance amount.
 ///
-pub fn balance(account: &Account) -> Result<KrakenResult<HashMap<String, String>>, String> {
+pub fn balance(account: &Account) -> Result<HashMap<String, String>, String> {
     let mut params = HashMap::new();
     private(account, "Balance", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<HashMap<String, String>>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 }
 
@@ -648,7 +714,7 @@ pub fn trade_balance(
     account: &Account,
     aclass: Option<&str>,
     asset: Option<&str>,
-) -> Result<KrakenResult<TradeBalance>, String> {
+) -> Result<TradeBalance, String> {
     let mut params = HashMap::new();
 
     if let Some(ct) = aclass {
@@ -660,7 +726,15 @@ pub fn trade_balance(
     }
 
     private(account, "TradeBalance", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<TradeBalance>| if result.error.len() >
+                0
+            {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -680,7 +754,7 @@ pub fn open_orders(
     account: &Account,
     trades: Option<bool>,
     userref: Option<&str>,
-) -> Result<KrakenResult<OpenOrders>, String> {
+) -> Result<OpenOrders, String> {
     let mut params = HashMap::new();
 
     if let Some(ct) = trades {
@@ -699,7 +773,15 @@ pub fn open_orders(
     }
 
     private(account, "OpenOrders", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<OpenOrders>| if result.error.len() >
+                0
+            {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -709,11 +791,19 @@ pub fn open_orders(
 /// Times given by order tx ids are more accurate than unix timestamps.
 /// If an order tx id is given for the time, the order's open time is used.
 ///
-pub fn closed_orders(account: &Account) -> Result<KrakenResult<ClosedOrders>, String> {
+pub fn closed_orders(account: &Account) -> Result<ClosedOrders, String> {
     let mut params = HashMap::new();
 
     private(account, "ClosedOrders", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<ClosedOrders>| if result.error.len() >
+                0
+            {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
     })
 }
 
@@ -737,7 +827,7 @@ pub fn add_order(
     amount: &str,
     rate: &str,
     ordertype: &str,
-) -> Result<KrakenResult<HashMap<String, String>>, String> {
+) -> Result<HashMap<String, String>, String> {
     let mut params = HashMap::new();
 
     params.insert("pair".to_owned(), String::from(pair));
@@ -746,7 +836,15 @@ pub fn add_order(
     params.insert("volume".to_owned(), format!("{}", amount));
 
     private(account, "AddOrder", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<HashMap<String, String>>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 }
 
@@ -754,14 +852,23 @@ pub fn add_order(
 /// Cancels an order.
 ///
 /// # Note
+///
 ///  txid may be a user reference id.
 ///
-pub fn cancel_order(account: &Account, txid: &str) -> Result<KrakenResult<CanceldOrders>, String> {
+pub fn cancel_order(account: &Account, txid: &str) -> Result<CanceldOrders, String> {
     let mut params = HashMap::new();
 
     params.insert("txid".to_owned(), String::from(txid));
 
     private(account, "CancelOrder", &mut params).and_then(|r| {
-        serde_json::from_slice(&r).map_err(|e| format!("{:?}", e))
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(
+                |result: KrakenResult<CanceldOrders>| if result.error.len() > 0 {
+                    Err(format!("{:?}", result.error))
+                } else {
+                    Ok(result.result.unwrap())
+                },
+            )
     })
 }
