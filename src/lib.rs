@@ -617,7 +617,7 @@ fn private(
     let path = format!("/0/private/{}", method);
     let url = format!("https://api.kraken.com{}", path);
     let timestamp = ::std::time::UNIX_EPOCH.elapsed().unwrap();
-    let nonce = format!("{}{}", timestamp.as_secs(), timestamp.subsec_nanos() / 1000);
+    let nonce = format!("{}{}", timestamp.as_secs(), timestamp.subsec_nanos());
 
     let mut dst = Vec::new();
     let mut easy = Easy::new();
