@@ -18,6 +18,15 @@ Full API implementation for the [Kraken](https://www.kraken.com/) market-place.
 extern crate kraken;
 
 fn main() {
+  let account = kraken::Account {
+    key: String::from("<your-key>"),
+    secret: String::from("<your-secret>"),
+  };
+
+  let balances = kraken::balance(&account).expect("could not get balance");
+
+  println!("{:?}", balances);
+
   let tick = kraken::ticker("XETHZUSD").expect("could not get tick");
 
   println!("{:?}", tick.get("XETHZUSD").a[1].parse::<f64>());

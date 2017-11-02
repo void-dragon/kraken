@@ -11,6 +11,43 @@
 //!
 //! + https://www.kraken.com/en-us/help/api
 //!
+//! ## Example
+//!
+//! ```rust
+//! extern crate kraken;
+//!
+//! fn main() {
+//!   let account = kraken::Account {
+//!     key: String::from("<your-key>"),
+//!     secret: String::from("<your-secret>"),
+//!   };
+//!
+//!   let balances = kraken::balance(&account).expect("could not get balance");
+//!
+//!   println!("{:?}", balances);
+//!
+//!   let tick = kraken::ticker("XETHZUSD").expect("could not get tick");
+//!
+//!   println!("{:?}", tick.get("XETHZUSD").a[1].parse::<f64>());
+//!
+//!   // ticker all pairs at once :D
+//!
+//!   let pairs = kraken.asset_pairs().expect("could not optain kraken pairs");
+//!
+//!   let pair_data = pairs.result.unwrap();
+//!   let pairs: Vec<&String> = pair_data.keys().collect();
+//!   let mut pairchain = pairs.iter().fold(
+//!     String::new(),
+//!     |data, item| data + item + ",",
+//!   );
+//!   pairchain.pop();
+//!
+//!   kraken::ticker(&pairchain).and_then(|tick| {
+//!     // do funky stuff with a tick
+//!   });
+//! }
+//! ```
+//!
 extern crate base64;
 extern crate crypto;
 extern crate curl;
@@ -242,6 +279,29 @@ pub struct OpenOrders {
 pub struct ClosedOrders {
     pub closed: HashMap<String, OrderInfo>,
     pub count: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub enum ClosedOrdersConfigCloseTime {
+    Open,
+    Close,
+    Both,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ClosedOrdersConfig {
+    /// whether or not to include trades in output (optional.  default = false).
+    pub trades: Option<bool>,
+    /// restrict results to given user reference id (optional).
+    pub userref: Option<String>,
+    /// starting unix timestamp or order tx id of results (optional.  exclusive).
+    pub start: Option<i64>,
+    /// ending unix timestamp or order tx id of results (optional.  inclusive).
+    pub end: Option<i64>,
+    /// result offset.
+    pub ofs: Option<u64>,
+    /// which time to use (optional).
+    pub closetime: Option<ClosedOrdersConfigCloseTime>,
 }
 
 /// Cancel order result
@@ -482,8 +542,18 @@ pub fn ticker(pairs: &str) -> Result<HashMap<String, Tick>, String> {
 /// }
 /// ```
 ///
-pub fn ohlc(pair: &str) -> Result<OHLC, String> {
-    public(&format!("OHLC?pair={}", pair)).and_then(|data| {
+pub fn ohlc(pair: &str, interval: Option<u32>, since: Option<&str>) -> Result<OHLC, String> {
+    let mut url = format!("OHLC?pair={}", pair);
+
+    if let Some(interval) = interval {
+        url = format!("{}&interval={}", url, interval);
+    }
+
+    if let Some(since) = since {
+        url = format!("{}&since={}", url, since);
+    }
+
+    public(&url).and_then(|data| {
         serde_json::from_slice(&data)
             .map_err(|e| format!("{:?}", e))
             .and_then(|result: KrakenResult<OHLC>| if result.error.len() > 0 {
@@ -496,6 +566,11 @@ pub fn ohlc(pair: &str) -> Result<OHLC, String> {
 
 ///
 /// Get the order depth.
+///
+/// # Arguments
+///
+/// + `pair` - asset pair to get market depth for
+/// + `count` - maximum number of asks/bids (optional)
 ///
 /// ```json
 /// {
@@ -527,6 +602,13 @@ pub fn order_book(pair: &str, count: Option<u32>) -> Result<Depth, String> {
     })
 }
 
+///
+/// Get recent trades.
+///
+/// # Arguments
+///
+/// + `pair` - asset pair to get trade data for
+/// + `since` - return trade data since given id (optional.  exclusive)
 ///
 /// ```json
 /// {
@@ -567,6 +649,13 @@ pub fn recent_trades(
     })
 }
 
+///
+/// Get recent spread data.
+///
+/// # Arguments
+///
+/// + `pair` - asset pair to get spread data for.
+/// + `since` - return spread data since given id (optional.  inclusive).
 ///
 /// ```json
 /// {
@@ -684,6 +773,10 @@ fn private(
 ///
 /// Returns an array of asset names and balance amount.
 ///
+/// # Arguments
+///
+/// + `account` - The account credentials to use.
+///
 pub fn balance(account: &Account) -> Result<HashMap<String, String>, String> {
     let mut params = HashMap::new();
     private(account, "Balance", &mut params).and_then(|r| {
@@ -700,15 +793,13 @@ pub fn balance(account: &Account) -> Result<HashMap<String, String>, String> {
 }
 
 ///
-/// + `eb` = equivalent balance (combined balance of all currencies)
-/// + `tb` = trade balance (combined balance of all equity currencies)
-/// + `m` = margin amount of open positions
-/// + `n` = unrealized net profit/loss of open positions
-/// + `c` = cost basis of open positions
-/// + `v` = current floating valuation of open positions
-/// + `e` = equity = trade balance + unrealized net profit/loss
-/// + `mf` = free margin = equity - initial margin (maximum margin available to open new positions)
-/// + `ml` = margin level = (equity / initial margin) * 100
+/// Get trade balance.
+///
+/// # Arguments
+///
+/// + `account` - The account credentials to use.
+/// + `asset` - class (optional): currency (default).
+/// + `asset` = base asset used to determine balance (default = ZUSD).
 ///
 pub fn trade_balance(
     account: &Account,
@@ -739,8 +830,12 @@ pub fn trade_balance(
 }
 
 ///
-/// trades = whether or not to include trades in output (optional.  default = false)
-/// userref = restrict results to given user reference id (optional)
+/// Get open orders.
+///
+/// # Arguments
+///
+/// + `trades` - whether or not to include trades in output (optional.  default = false).
+/// + `userref` - restrict results to given user reference id (optional).
 ///
 /// # Note
 ///
@@ -786,13 +881,67 @@ pub fn open_orders(
 }
 
 ///
+/// Get closed orders.
+///
+/// # Arguments
+///
+/// + `trades` - whether or not to include trades in output (optional.  default = false).
+/// + `userref` - restrict results to given user reference id (optional).
+/// + `start` - starting unix timestamp or order tx id of results (optional.  exclusive).
+/// + `end` - ending unix timestamp or order tx id of results (optional.  inclusive).
+/// + `ofs` - result offset.
+/// + `closetime` = which time to use (optional)
+///     open
+///     close
+///     both (default)
+///
 /// # Note
 ///
 /// Times given by order tx ids are more accurate than unix timestamps.
 /// If an order tx id is given for the time, the order's open time is used.
 ///
-pub fn closed_orders(account: &Account) -> Result<ClosedOrders, String> {
+pub fn closed_orders(
+    account: &Account,
+    cfg: Option<ClosedOrdersConfig>,
+) -> Result<ClosedOrders, String> {
     let mut params = HashMap::new();
+
+    if let Some(cfg) = cfg {
+
+        if let Some(trades) = cfg.trades {
+            if trades {
+                params.insert("trades".to_owned(), "true".to_owned());
+            } else {
+                params.insert("trades".to_owned(), "false".to_owned());
+            }
+        }
+
+        if let Some(userref) = cfg.userref {
+            params.insert("userref".to_owned(), userref);
+        }
+
+        if let Some(start) = cfg.start {
+            params.insert("start".to_owned(), format!("{}", start));
+        }
+
+        if let Some(end) = cfg.end {
+            params.insert("end".to_owned(), format!("{}", end));
+        }
+
+        if let Some(ofs) = cfg.ofs {
+            params.insert("ofs".to_owned(), format!("{}", ofs));
+        }
+
+        if let Some(closetime) = cfg.closetime {
+            let value = match closetime {
+                ClosedOrdersConfigCloseTime::Open => "open",
+                ClosedOrdersConfigCloseTime::Close => "close",
+                ClosedOrdersConfigCloseTime::Both => "both",
+            };
+
+            params.insert("closetime".to_owned(), value.to_owned());
+        }
+    }
 
     private(account, "ClosedOrders", &mut params).and_then(|r| {
         serde_json::from_slice(&r)
