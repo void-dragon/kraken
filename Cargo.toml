@@ -2,11 +2,16 @@
 name = "kraken"
 version = "0.1.0"
 authors = ["Arne Simon <arne_simon@gmx.de>"]
+description = "REST API for the Kraken market place."
+license = "MIT"
+documentation = "https://docs.rs/kraken"
+homepage = "https://github.com/void-dragon/kraken"
+repository = "https://github.com/void-dragon/kraken"
 
 [dependencies]
-base64 = "*"
-curl = "*"
-rust-crypto = "*"
+base64 = "0.7"
+curl = "0.4.8"
+rust-crypto = "0.2.36"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"

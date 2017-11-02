@@ -10,6 +10,8 @@ Full API implementation for the [Kraken](https://www.kraken.com/) market-place.
 
 **Kraken API Documentation:** https://www.kraken.com/en-us/help/api
 
+**Documentation:**  https://docs.rs/kraken/ ![](https://docs.rs/kraken/badge.svg)
+
 ## Example
 
 ```rust
@@ -33,7 +35,7 @@ fn main() {
   pairchain.pop();
 
   kraken::ticker(&pairchain).and_then(|tick| {
-    // do funky stuff with tick
+    // do funky stuff with a tick
   });
 }
 ```
