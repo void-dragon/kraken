@@ -706,7 +706,7 @@ fn private(
     let path = format!("/0/private/{}", method);
     let url = format!("https://api.kraken.com{}", path);
     let timestamp = ::std::time::UNIX_EPOCH.elapsed().unwrap();
-    let nonce = format!("{}{}", timestamp.as_secs(), timestamp.subsec_nanos());
+    let nonce = format!("{}{:09}", timestamp.as_secs(), timestamp.subsec_nanos());
 
     let mut dst = Vec::new();
     let mut easy = Easy::new();
@@ -955,6 +955,51 @@ pub fn closed_orders(
             })
     })
 }
+
+///
+/// Query orders info.
+///
+/// # Arguments
+///
+/// + `trades` - whether or not to include trades in output (optional.  default = false).
+/// + `userref` - restrict results to given user reference id (optional).
+/// + `txid` - comma delimited list of transaction ids to query info about (20 maximum).
+///
+pub fn query_orders(
+    account: &Account,
+    trades: Option<bool>,
+    userref: Option<String>,
+    txids: Option<String>,
+) -> Result<OpenOrders, String> {
+    let mut params = HashMap::new();
+
+    if let Some(trades) = trades {
+        let val = if trades { "true" } else { "false" };
+
+        params.insert("trades".to_owned(), val.to_owned());
+    }
+
+    if let Some(userref) = userref {
+        params.insert("userref".to_owned(), userref);
+    }
+
+    if let Some(txids) = txids {
+        params.insert("txids".to_owned(), txids);
+    }
+
+    private(account, "QueryOrders", &mut params).and_then(|r| {
+        serde_json::from_slice(&r)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|result: KrakenResult<OpenOrders>| if result.error.len() >
+                0
+            {
+                Err(format!("{:?}", result.error))
+            } else {
+                Ok(result.result.unwrap())
+            })
+    })
+}
+
 
 ///
 /// Create a new order.
