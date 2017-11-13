@@ -457,7 +457,10 @@ pub fn asset_pairs() -> Result<HashMap<String, AssetPair>, String> {
                 |result: KrakenResult<HashMap<String, AssetPair>>| if result.error.len() > 0 {
                     Err(format!("{:?}", result.error))
                 } else {
-                    Ok(result.result.unwrap())
+                    match result.result {
+                        Some(stuff) => Ok(stuff),
+                        None => Err(String::from("empty result")),
+                    }
                 },
             )
     })
