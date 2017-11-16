@@ -314,6 +314,76 @@ pub struct CanceldOrders {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub enum TradeType {
+    Buy,
+    Sell,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub enum OrderType {
+    Market,
+    /// (price = limit price)
+    Limit,
+    /// (price = stop loss price)
+    StopLoss,
+    /// (price = take profit price)
+    TakeProfit,
+    /// (price = stop loss price, price2 = take profit price)
+    StopLossProfit,
+    /// (price = stop loss price, price2 = take profit price)
+    StopLossProfitLimit,
+    /// (price = stop loss trigger price, price2 = triggered limit price)
+    StopLossLimit,
+    /// (price = take profit trigger price, price2 = triggered limit price)
+    TakeProfitLimit,
+    /// (price = trailing stop offset)
+    TrailingStop,
+    /// (price = trailing stop offset, price2 = triggered limit offset)
+    TrailingStopLimit,
+    /// (price = stop loss price, price2 = limit price)
+    StopLossAndLimit,
+    SettlePosition,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NewOrder {
+    /// asset pair
+    pub pair: String,
+    /// type of order (buy/sell)
+    pub kind: TradeType,
+    pub order_type: OrderType,
+    /// price (optional.  dependent upon ordertype)
+    pub price: Option<String>,
+    /// secondary price (optional.  dependent upon ordertype)
+    pub price2: Option<String>,
+    /// order volume in lots
+    pub volume: String,
+    /// amount of leverage desired (optional.  default = none)
+    pub leverage: Option<String>,
+    /// comma delimited list of order flags (optional):
+    ///   + viqc = volume in quote currency (not available for leveraged orders)
+    ///   + fcib = prefer fee in base currency
+    ///   + fciq = prefer fee in quote currency
+    ///   + nompp = no market price protection
+    ///   + post = post only order (available when ordertype = limit)
+    pub oflags: Option<String>,
+    /// scheduled start time (optional):
+    ///   + 0 = now (default)
+    ///   + +<n> = schedule start time <n> seconds from now
+    ///   + <n> = unix timestamp of start time
+    pub starttm: Option<i64>,
+    /// expiration time (optional):
+    ///   + 0 = no expiration (default)
+    ///   + +<n> = expire <n> seconds from now
+    ///   + <n> = unix timestamp of expiration time
+    pub expiretm: Option<i64>,
+    /// user reference id.  32-bit signed number.  (optional)
+    pub userref: Option<String>,
+    /// validate inputs only.  do not submit order (optional)
+    pub validate: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct KrakenResult<T> {
     pub error: Vec<String>,
     pub result: Option<T>,
@@ -452,7 +522,7 @@ pub fn assets() -> Result<HashMap<String, Asset>, String> {
 pub fn asset_pairs() -> Result<HashMap<String, AssetPair>, String> {
     public("AssetPairs").and_then(|data| {
         serde_json::from_slice(&data)
-            .map_err(|e| format!("{:?}", e))
+            .map_err(|e| format!("{:?}\n{:?}", e, data))
             .and_then(
                 |result: KrakenResult<HashMap<String, AssetPair>>| if result.error.len() > 0 {
                     Err(format!("{:?}", result.error))
@@ -511,7 +581,10 @@ pub fn ticker(pairs: &str) -> Result<HashMap<String, Tick>, String> {
                 |result: KrakenResult<HashMap<String, Tick>>| if result.error.len() > 0 {
                     Err(format!("{:?}", result.error))
                 } else {
-                    Ok(result.result.unwrap())
+                    match result.result {
+                        Some(stuff) => Ok(stuff),
+                        None => Err(String::from("empty result")),
+                    }
                 },
             )
     })
@@ -878,7 +951,10 @@ pub fn open_orders(
             {
                 Err(format!("{:?}", result.error))
             } else {
-                Ok(result.result.unwrap())
+                match result.result {
+                    Some(stuff) => Ok(stuff),
+                    None => Err(String::from("empty result")),
+                }
             })
     })
 }
@@ -1018,19 +1094,69 @@ pub fn query_orders(
 /// + For orders using leverage, 0 can be used for the volume to auto-fill the volume needed to close out your position.
 /// + If you receive the error "EOrder:Trading agreement required", refer to your API key management page for further details.
 ///
-pub fn add_order(
-    account: &Account,
-    pair: &str,
-    amount: &str,
-    rate: &str,
-    ordertype: &str,
-) -> Result<HashMap<String, String>, String> {
+pub fn add_order(account: &Account, order: NewOrder) -> Result<HashMap<String, String>, String> {
     let mut params = HashMap::new();
 
-    params.insert("pair".to_owned(), String::from(pair));
-    params.insert("price".to_owned(), format!("{}", rate));
-    params.insert("ordertype".to_owned(), String::from(ordertype));
-    params.insert("volume".to_owned(), format!("{}", amount));
+    params.insert("pair".to_owned(), order.pair);
+    params.insert("volume".to_owned(), order.volume);
+
+    match order.kind {
+        TradeType::Sell => {
+            params.insert("type".to_owned(), String::from("sell"));
+        }
+        TradeType::Buy => {
+            params.insert("type".to_owned(), String::from("buy"));
+        }
+    }
+
+    let order_type = match order.order_type {
+        OrderType::Market => "market",
+        OrderType::Limit => "limit",
+        OrderType::StopLoss => "stop-loss",
+        OrderType::TakeProfit => "take-profit",
+        OrderType::StopLossProfit => "stop-loss-profit",
+        OrderType::StopLossProfitLimit => "stop-loss-profit-limit",
+        OrderType::StopLossLimit => "stop-loss-limit",
+        OrderType::TakeProfitLimit => "take-profit-limit",
+        OrderType::TrailingStop => "trailing-stop",
+        OrderType::TrailingStopLimit => "trailing-stop-limit",
+        OrderType::StopLossAndLimit => "stop-loss-and-limit",
+        OrderType::SettlePosition => "settle-position",
+    };
+
+    params.insert("ordertype".to_owned(), String::from(order_type));
+
+    if let Some(price) = order.price {
+        params.insert("price".to_owned(), price);
+    }
+
+    if let Some(price) = order.price2 {
+        params.insert("price2".to_owned(), price);
+    }
+
+    if let Some(leverage) = order.leverage {
+        params.insert("leverage".to_owned(), leverage);
+    }
+
+    if let Some(oflags) = order.oflags {
+        params.insert("oflags".to_owned(), oflags);
+    }
+
+    if let Some(userref) = order.userref {
+        params.insert("userref".to_owned(), userref);
+    }
+
+    if let Some(starttm) = order.starttm {
+        params.insert("starttm".to_owned(), format!("{}", starttm));
+    }
+
+    if let Some(expiretm) = order.expiretm {
+        params.insert("expiretm".to_owned(), format!("{}", expiretm));
+    }
+
+    if order.validate.is_some() {
+        params.insert("validate".to_owned(), String::from("1"));
+    }
 
     private(account, "AddOrder", &mut params).and_then(|r| {
         serde_json::from_slice(&r)
