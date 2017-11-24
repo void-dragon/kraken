@@ -9,7 +9,7 @@ homepage = "https://github.com/void-dragon/kraken"
 repository = "https://github.com/void-dragon/kraken"
 
 [dependencies]
-base64 = "0.7"
+base64 = "0.8"
 curl = "0.4.8"
 rust-crypto = "0.2.36"
 serde = "1"
